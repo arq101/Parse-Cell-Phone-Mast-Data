@@ -1,6 +1,6 @@
 # Technical Exercise To Parse and Process CSV Data
 
-A script to process and report data on pertaining to cell phone tower masts.
+A script to process and report on data pertaining to cell phone tower masts.
 
 ## Set up your virtualenv with Python 3.7
 
