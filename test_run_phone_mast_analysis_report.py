@@ -18,9 +18,9 @@ def sample_csv_file(tmpdir):
     csv_file.write(
         'Property Name,Property Address,Unit Name,Tenant Name,Lease Start Date,Lease End Date,Lease Years,'
         'Current Rent\n'
-        'Farmhouse 2,Field X,Unit 2,CellWorks Ltd,29 Apr 2008,28 Apr 2018,10,700,\n'
-        'Farmhouse 1,Field Y,Unit 1,CellWorks Ltd,29 Apr 2002,28 Apr 2020,18,500,\n'
-        'Farmhouse 3,Field Z,Unit 3,CellWorks Ltd,01 Dec 2019,01 Dec 2021,2,999.99,\n'
+        'Farmhouse 2,Field X,Unit 2,CellWorks Ltd,29 Apr 2008,28 Apr 2018,10,700\n'
+        'Farmhouse 1,Field Y,Unit 1,CellWorks Ltd,29 Apr 2002,28 Apr 2020,15,500\n'
+        'Farmhouse 3,Field Z,Unit 3,CellWorks Ltd,01 Dec 2019,01 Dec 2021,15,999.99\n'
         )
     return str(csv_file)
 
@@ -57,16 +57,31 @@ class TestPhoneMastAnalysisReport(object):
             'table': [['Farmhouse 1', 'Unit 1', 'CellWorks Ltd', '500']],
             'headers': ('Property Name', 'Unit Name', 'Tenant Name', 'Current Rent')
         }
-        analysis_report.print_tabulated_output(list_obj=expected_input['table'], headers=expected_input['headers'])
-        std_out, _ = capsys.readouterr()
-        assert std_out == ('Property Name    Unit Name    Tenant Name      Current Rent\n'
+        analysis_report.print_tabulated_output(array_obj=expected_input['table'], headers=expected_input['headers'])
+        std_out, _ = capsys.readouterr()        
+        expected_output = ('\nProperty Name    Unit Name    Tenant Name      Current Rent\n'
                            '---------------  -----------  -------------  --------------\n'
-                           'Farmhouse 1      Unit 1       CellWorks Ltd             500\n')
+                           'Farmhouse 1      Unit 1       CellWorks Ltd             500\n\n')
+        assert std_out == expected_output
+
+    def test_get_records_that_match_number_of_lease_years(self, sample_csv_file):
+        matched_data = analysis_report.get_records_that_match_number_of_lease_years(
+            csv_file=sample_csv_file, lease_years=15)
+        expected_output = {
+            'table': [
+                ['Farmhouse 1', 'Field Y', 'Unit 1', 'CellWorks Ltd', '29 Apr 2002', '28 Apr 2020', '15', '500'],
+                ['Farmhouse 3', 'Field Z', 'Unit 3', 'CellWorks Ltd', '01 Dec 2019', '01 Dec 2021', '15', '999.99']
+            ],
+            'headers': ['Property Name', 'Property Address', 'Unit Name', 'Tenant Name', 'Lease Start Date',
+                        'Lease End Date', 'Lease Years', 'Current Rent'],
+            'total_rent': [(1499.99,)]      # total of: 500 + 999.99
+        }
+        assert expected_output == matched_data
 
     @mock.patch('sys.argv')
-    def test_arg_parser(self, m_sys_argv, sample_csv_file, ):
+    def test_arg_parser(self, mock_sys_argv, sample_csv_file, ):
         sys.argv = ['program.py', sample_csv_file, '-r', '5']
-
-        expected_args = Namespace(csv_file=sample_csv_file, top_rents=5)
+        expected_args = Namespace(csv_file=sample_csv_file, top_rents=5, lease_years=None)
         args = analysis_report.arg_parser()
         assert args == expected_args
+
