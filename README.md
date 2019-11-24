@@ -38,19 +38,19 @@ python run_phone_mast_analysis_report.py ./sample_data/input_dataset.csv -top_re
 
 
 ## Requirement 2 - All Mast Data Matching Lease Years
-Display information full data set for masts that have number of lease years equal to 25
+Display all data fields for masts that have number of lease years equal to 25
 ```
 python run_phone_mast_analysis_report.py ./sample_data/input_dataset.csv -lease_years 25
 ``` 
 
 ## Requirement 3 - Tenants and Number of Mast Sites
-Display information on tenant names and numbner of sites associated to each tenant
+Display information on tenants and the number of sites associated to each tenant
 ```
 python run_phone_mast_analysis_report.py ./sample_data/input_dataset.csv -tenants 
 ```
 
 
-## Requirement 4 - Leases Starting Between Given Start Dates
+## Requirement 4 - Mast Sites Leased Between Given Start Dates
 Display information on rental mast sites where lease start date is between 2 given dates
 ```
 python run_phone_mast_analysis_report.py ./sample_data/input_dataset.csv -lease_starting_range 1999-06-01 2007-08-31
