@@ -50,7 +50,7 @@ class TestPhoneMastAnalysisReport(object):
             'table': [['Farmhouse 1',  'Unit 1', 'CellWorks Ltd', '500']],
             'headers': ('Property Name', 'Unit Name', 'Tenant Name', 'Current Rent')
         }
-        assert expected_outcome == result
+        assert result == expected_outcome
 
     def test_print_tabulated_output(self, capsys):
         expected_input = {
@@ -76,12 +76,58 @@ class TestPhoneMastAnalysisReport(object):
                         'Lease End Date', 'Lease Years', 'Current Rent'],
             'total_rent': [(1499.99,)]      # total of: 500 + 999.99
         }
-        assert expected_output == matched_data
+        assert matched_data == expected_output
+
+    def test_get_tenant_name_and_mast_count(self, sample_csv_file):
+        tenant_counts = analysis_report.get_tenant_name_and_mast_count(csv_file=sample_csv_file)
+        expected_outcome = {
+            'table': [('CellWorks Ltd', 3)],
+            'headers': ['Tenant Name', 'Number of Masts']
+        }
+        assert tenant_counts == expected_outcome
+
+    def test_get_rental_data_for_lease_between_start_and_end_dates(self, sample_csv_file):
+        date_range = ['2000-01-30', '2010-12-31']
+        result = analysis_report.get_rental_data_for_lease_between_start_and_end_dates(
+            csv_file=sample_csv_file,
+            lease_start_dt_range=date_range)
+        expected_outcome = {
+            'table': [
+                ['Farmhouse 2', 'Unit 2', 'CellWorks Ltd', '29/04/2008', '28/04/2018', '10', '700'],
+                ['Farmhouse 1', 'Unit 1', 'CellWorks Ltd', '29/04/2002', '28/04/2020', '15', '500'],
+            ],
+            'headers': ['Property Name', 'Unit Name', 'Tenant Name', 'Lease Start Date',
+                        'Lease End Date', 'Lease Years', 'Current Rent']
+        }
+        assert result == expected_outcome
 
     @mock.patch('sys.argv')
-    def test_arg_parser(self, mock_sys_argv, sample_csv_file, ):
-        sys.argv = ['program.py', sample_csv_file, '-r', '5']
-        expected_args = Namespace(csv_file=sample_csv_file, top_rents=5, lease_years=None)
+    def test_arg_parser_requirement_1(self, mock_sys_argv, sample_csv_file, ):
+        sys.argv = ['program.py', sample_csv_file, '-top_rents', '5']
+        expected_args = Namespace(
+            csv_file=sample_csv_file,
+            top_rents=5,
+            lease_years=None,
+            tenants=False,
+            lease_starting_range=None
+        )
         args = analysis_report.arg_parser()
         assert args == expected_args
 
+    @mock.patch('sys.argv')
+    def test_arg_parser_requirements_all(self, mock_sys_argv, sample_csv_file, ):
+        sys.argv = ['program.py', sample_csv_file,
+                    '-top_rents', '5',
+                    '-lease_years', '25',
+                    '-tenants',
+                    '-lease_starting_range', '1999-06-01', '2007-08-31'
+        ]
+        expected_args = Namespace(
+            csv_file=sample_csv_file,
+            top_rents=5,
+            lease_years=25,
+            tenants=True,
+            lease_starting_range=['1999-06-01', '2007-08-31']
+        )
+        args = analysis_report.arg_parser()
+        assert args == expected_args

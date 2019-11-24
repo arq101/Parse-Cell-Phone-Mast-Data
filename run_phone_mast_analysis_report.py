@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import arrow
 import csv
+from collections import Counter
+from datetime import datetime
 import logging
 import os
 from tabulate import tabulate
@@ -50,6 +53,7 @@ def get_top_n_items_from_list_data(data_set, num_of_items):
     :return: dict
     """
     top_dataset = data_set[:num_of_items]
+
     # creating a list of lists in order to tabulate this data ...
     table_list = [[row['Property Name'], row['Unit Name'], row['Tenant Name'], row['Current Rent']] for row in
                   top_dataset]
@@ -101,6 +105,59 @@ def get_records_that_match_number_of_lease_years(csv_file, lease_years):
     }
 
 
+def get_tenant_name_and_mast_count(csv_file):
+    with open(csv_file, 'r') as fh:
+        csv_reader = csv.DictReader(fh)
+
+        # NOTE: assuming tenant names are to be taken literally as given in the source data,
+        # (some tenant names have the same name, but difference in upper/lower case and missing spaces)
+        tenant_names = [row['Tenant Name'] for row in csv_reader]
+
+    tenant_name_counts = Counter(tenant_names)
+    return {
+        'table': [(tenant, count) for tenant, count in tenant_name_counts.items()],
+        'headers': ['Tenant Name', 'Number of Masts']
+    }
+
+
+def get_rental_data_for_lease_between_start_and_end_dates(csv_file, lease_start_dt_range):
+    with open(csv_file, 'r') as fh:
+        csv_reader = csv.DictReader(fh)
+        col_headers = csv_reader.fieldnames
+        rental_data = list(csv_reader)
+
+    try:
+        lease_start_date_1 = arrow.get(lease_start_dt_range[0], 'YYYY-MM-DD')
+        lease_start_date_2 = arrow.get(lease_start_dt_range[1], 'YYYY-MM-DD')
+    except ValueError as err:
+        logger.error(str(err))
+        raise
+
+    # convert string dates to Python arrow datetime objects in order to do date comparisons
+    for item in rental_data:
+        item['Lease Start Date'] = arrow.get(item['Lease Start Date'], 'DD MMM YYYY')
+        item['Lease End Date'] = arrow.get(item['Lease End Date'], 'DD MMM YYYY')
+
+    filter_data = list(filter(
+        lambda row: (row['Lease Start Date'] >= lease_start_date_1 and row['Lease Start Date'] <= lease_start_date_2),
+        rental_data))
+
+    for item in filter_data:
+        item['Lease Start Date'] = item['Lease Start Date'].format('DD/MM/YYYY')
+        item['Lease End Date'] = item['Lease End Date'].format('DD/MM/YYYY')
+
+    # creating a list of lists in order to tabulate this data ...
+    table_list = [
+        [row['Property Name'], row['Unit Name'], row['Tenant Name'], row['Lease Start Date'], row['Lease End Date'],
+         row['Lease Years'], row['Current Rent']] for row in filter_data
+    ]
+    return {
+        'table': table_list,
+        'headers': ['Property Name', 'Unit Name', 'Tenant Name', 'Lease Start Date',  'Lease End Date',
+                    'Lease Years', 'Current Rent']
+    }
+
+
 def arg_parser():
     parser = argparse.ArgumentParser(description='This script produces some analysis on mobile '
                                                  'phone mast data provided as csv input.')
@@ -108,11 +165,17 @@ def arg_parser():
     parser.add_argument('csv_file', action='store', help='file path of csv')
 
     # optional args
-    parser.add_argument('-r', action='store', dest='top_rents', type=int,
+    parser.add_argument('-top_rents', action='store', dest='top_rents', type=int,
                         help='prints top n number of records of data sorted in ascending order '
                              'by current rent')
-    parser.add_argument('-l', action='store', dest='lease_years', type=int,
+    parser.add_argument('-lease_years', action='store', dest='lease_years', type=int,
                         help='prints records that equal the given number of lease years')
+    parser.add_argument('-tenants', action='store_true', dest='tenants', default=False,
+                        help='prints tenants and associated number of masts')
+    parser.add_argument('-lease_starting_range', action='store', dest='lease_starting_range', nargs=2,
+                        help='Prints rental data for lease starting and ending between given dates, '
+                             'date format: yyyy-mm-dd')
+
     args = parser.parse_args()
     return args
 
@@ -122,6 +185,7 @@ def main():
     cmdline_args = arg_parser()
 
     check_file_exists(cmdline_args.csv_file)
+    # process top rents
     if cmdline_args.top_rents:
         sorted_rent_data = read_and_sort_csv_data_by_current_rent(csv_file=cmdline_args.csv_file)
         top_rents = get_top_n_items_from_list_data(data_set=sorted_rent_data,
@@ -129,6 +193,7 @@ def main():
         logger.info(f'Top {cmdline_args.top_rents} mobile phone mast sites in ascending order of current rent ...')
         print_tabulated_output(array_obj=top_rents['table'], headers=top_rents['headers'])
 
+    # process rentals matching number of lease years
     if cmdline_args.lease_years:
         matched_lease_yrs_data = get_records_that_match_number_of_lease_years(
             csv_file=cmdline_args.csv_file,
@@ -139,7 +204,24 @@ def main():
         logger.info(f'Total rent for sites that have a lease of {cmdline_args.lease_years} years ...')
         print_tabulated_output(array_obj=matched_lease_yrs_data['total_rent'], headers=['Total Rent'])
 
-    if not cmdline_args.top_rents and not cmdline_args.lease_years:
+    # process tenants and associated number of sites
+    if cmdline_args.tenants:
+        logger.info('Tenants and the number of masts associated to them ...')
+        tenants_and_mast_count = get_tenant_name_and_mast_count(csv_file=cmdline_args.csv_file)
+        print_tabulated_output(array_obj=tenants_and_mast_count['table'], headers=tenants_and_mast_count['headers'])
+
+    # process rentals with leases starting between given dates
+    if cmdline_args.lease_starting_range:
+        logger.info(f'Rentals with a lease start date between {cmdline_args.lease_starting_range[0]} '
+                    f'and {cmdline_args.lease_starting_range[1]} ...')
+        leaseing_between_data = get_rental_data_for_lease_between_start_and_end_dates(
+            csv_file=cmdline_args.csv_file,
+            lease_start_dt_range=cmdline_args.lease_starting_range)
+        print_tabulated_output(array_obj=leaseing_between_data['table'], headers=leaseing_between_data['headers'])
+
+    # TODO this could done more cleanly with more time
+    if not cmdline_args.top_rents and not cmdline_args.lease_years and not cmdline_args.tenants and \
+            not cmdline_args.lease_starting_range:
         logger.warning('No command line options were selected!')
 
     logger.info('--end--')
