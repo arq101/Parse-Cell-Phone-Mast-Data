@@ -5,7 +5,6 @@ import argparse
 import arrow
 import csv
 from collections import Counter
-from datetime import datetime
 import logging
 import os
 from tabulate import tabulate
